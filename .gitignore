@@ -1,0 +1,5 @@
+# Clion IDE files
+.idea
+
+# build directories
+build*
