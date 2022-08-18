@@ -15,6 +15,7 @@ function(getGitTag PATH_TO_GIT_REPOSITORY)
                 WORKING_DIRECTORY ${PATH_TO_GIT_REPOSITORY}
                 OUTPUT_VARIABLE TAG
                 RESULT_VARIABLE RETURN_VALUE
+                ERROR_QUIET
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
         if(RETURN_VALUE EQUAL "0")
             set(RESULT_TAG "${TAG}")
