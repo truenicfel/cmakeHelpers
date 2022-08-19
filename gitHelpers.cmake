@@ -26,6 +26,99 @@ function(getGitTag PATH_TO_GIT_REPOSITORY)
     set(GIT_TAG_FOUND ${RESULT_FOUND} PARENT_SCOPE)
 endfunction()
 
+# Get the latest git tag that matches the standard version definition (v.X.X.X.X)
+# Parameters:
+# - PATH_TO_GIT_REPOSITORY: the path to the git repository
+# Return values (variables set):
+# VERSION_MAJOR: major version
+# VERSION_MINOR: minor version
+# VERSION_PATCH: patch version
+# VERSION_TWEAK: tweak version
+# VERSION_COMBINED: all of the above combined with dots
+# COMMIT_NUMBER_AFTER_VERSION: the number of commits on top of the latest version tag
+# GIT_TAG_VERSION_FOUND: True/False if operation was successful
+function(getVersionFromGitTag PATH_TO_GIT_REPOSITORY)
+
+    set(VERSION_MAJOR "")
+    set(VERSION_MINOR "")
+    set(VERSION_PATCH "")
+    set(VERSION_TWEAK "")
+    set(VERSION_COMBINED "")
+    set(COMMIT_NUMBER_AFTER_VERSION "")
+    set(GIT_TAG_VERSION_FOUND False)
+
+
+    if(GIT_FOUND AND EXISTS ${PATH_TO_GIT_REPOSITORY})
+        execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --dirty --match "v*" --long
+                WORKING_DIRECTORY ${PATH_TO_GIT_REPOSITORY}
+                OUTPUT_VARIABLE DESCRIBE_OUTPUT
+                RESULT_VARIABLE RETURN_VALUE_DESCRIBE
+                ERROR_QUIET
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(RETURN_VALUE_DESCRIBE EQUAL "0")
+            string(REPLACE "-" ";" ELEMENTS ${DESCRIBE_OUTPUT})
+            list(GET ELEMENTS 0 VERSION)
+            list(GET ELEMENTS 1 COMMIT_NUMBER_AFTER_VERSION)
+            string(SUBSTRING ${VERSION} 1 -1 VERSION_CLEAN)
+
+            string(REPLACE "." ";" VERSION_ELEMENTS ${VERSION_CLEAN})
+            set(VERSION_COMBINED ${VERSION_CLEAN})
+            list(LENGTH VERSION_ELEMENTS VERSION_ELEMENT_COUNT)
+            if(VERSION_ELEMENT_COUNT GREATER 0)
+                list(GET VERSION_ELEMENTS 0 VERSION_MAJOR)
+                if(VERSION_ELEMENT_COUNT GREATER 1)
+                    list(GET VERSION_ELEMENTS 1 VERSION_MINOR)
+                    if(VERSION_ELEMENT_COUNT GREATER 2)
+                        list(GET VERSION_ELEMENTS 2 VERSION_PATCH)
+                        if(VERSION_ELEMENT_COUNT GREATER 3)
+                            list(GET VERSION_ELEMENTS 0 VERSION_TWEAK)
+                        endif()
+                    endif()
+                endif()
+            endif()
+            set(GIT_TAG_VERSION_FOUND True)
+        endif()
+    endif()
+
+    set(VERSION_MAJOR ${VERSION_MAJOR} PARENT_SCOPE)
+    set(VERSION_MINOR ${VERSION_MINOR} PARENT_SCOPE)
+    set(VERSION_PATCH ${VERSION_PATCH} PARENT_SCOPE)
+    set(VERSION_TWEAK ${VERSION_TWEAK} PARENT_SCOPE)
+    set(VERSION_COMBINED ${VERSION_COMBINED} PARENT_SCOPE)
+    set(COMMIT_NUMBER_AFTER_VERSION ${COMMIT_NUMBER_AFTER_VERSION} PARENT_SCOPE)
+    set(GIT_TAG_VERSION_FOUND ${GIT_TAG_VERSION_FOUND} PARENT_SCOPE)
+
+endfunction()
+
+# Get the current git hash in long format
+# Parameters:
+# - PATH_TO_GIT_REPOSITORY: the path to the git repository
+# Return values (variables set):
+# COMMIT_HASH: the hash
+# COMMIT_HASH_FOUND: True/False if operation was successful
+function(getGitHash PATH_TO_GIT_REPOSITORY)
+    set(COMMIT_HASH_FOUND False)
+    set(COMMIT_HASH "")
+
+    if(GIT_FOUND AND EXISTS ${PATH_TO_GIT_REPOSITORY})
+
+        execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+                WORKING_DIRECTORY ${PATH_TO_GIT_REPOSITORY}
+                OUTPUT_VARIABLE COMMIT_HASH
+                RESULT_VARIABLE RETURN_VALUE_REV
+                ERROR_QUIET
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+        if(RETURN_VALUE_REV EQUAL "0")
+            set(COMMIT_HASH_FOUND True)
+        endif()
+
+    endif()
+
+    set(COMMIT_HASH_FOUND ${COMMIT_HASH_FOUND} PARENT_SCOPE)
+    set(COMMIT_HASH ${COMMIT_HASH} PARENT_SCOPE)
+
+endfunction()
+
 # Get the git branch of a git repository
 # Parameters:
 # - PATH_TO_GIT_REPOSITORY: the path to the git repository
@@ -64,31 +157,38 @@ function(printSubmoduleStates)
             foreach(LINE ${SUBMODULES_LINES})
                 # split at spaces
                 string(REPLACE " " ";" LINE_LIST ${LINE})
-                list(GET LINE_LIST 1 HASH)
                 list(GET LINE_LIST 2 PATH_ELEMENT)
-                list(GET LINE_LIST 3 DESCRIBE)
 
                 set(PATH_TO_SUBMODULE "${CMAKE_CURRENT_SOURCE_DIR}/${PATH_ELEMENT}")
 
-                string(REPLACE "/" ";" PATH_LIST ${PATH_ELEMENT})
-                list(LENGTH PATH_LIST LENGTH_PATH_LIST)
-                math(EXPR INDEX_LAST "${LENGTH_PATH_LIST} - 1")
-                list(GET PATH_LIST ${INDEX_LAST} SUBMODULE_NAME)
-                # a print should look like this:
-                # Submodule '<name>' in directory '<path>' on tag '<tag>'
-                # or:
-                # Submodule '<name>' in directory '<path>' on branch '<branch>' at '<hash>'
-                getGitTag(${PATH_TO_SUBMODULE})
-                if (GIT_TAG_FOUND)
-                    message(STATUS "Submodule '${SUBMODULE_NAME}' in directory '${PATH_TO_SUBMODULE}' on tag '${GIT_TAG}'")
+                getVersionFromGitTag(${PATH_TO_SUBMODULE})
+                getGitHash(${PATH_TO_SUBMODULE})
+                getGitBranch(${PATH_TO_SUBMODULE})
+
+                if(GIT_TAG_VERSION_FOUND)
+                    set(VERSION "${VERSION_COMBINED} (${COMMIT_NUMBER_AFTER_VERSION} commits on top)")
                 else()
-                    getGitBranch(${PATH_TO_SUBMODULE})
-                    if (GIT_BRANCH_FOUND)
-                        message(STATUS "Submodule '${SUBMODULE_NAME}' in directory '${PATH_TO_SUBMODULE}' on branch '${GIT_BRANCH}' at '${HASH}'")
+                    set(VERSION "unknown")
+                endif()
+
+                if(GIT_BRANCH_FOUND)
+                    if("${GIT_BRANCH}" STREQUAL "")
+                        set(BRANCH "detached head")
                     else()
-                        message(STATUS "Submodule '${SUBMODULE_NAME}' in directory '${PATH_TO_SUBMODULE}' on '${DESCRIBE}' at '${HASH}'")
-                    endif ()
-                endif ()
+                        set(BRANCH ${GIT_BRANCH})
+                    endif()
+                else()
+                    set(BRANCH "unknown")
+                endif()
+
+                if(COMMIT_HASH_FOUND)
+                    set(HASH ${COMMIT_HASH})
+                else()
+                    set(HASH "unknown")
+                endif()
+
+                message(STATUS "Found Submodule: '${PATH_TO_SUBMODULE}' (version: ${VERSION}${VERSION_ADDITIONAL}, branch: ${BRANCH}, hash: ${HASH})")
+
             endforeach()
         endif()
     endif()
