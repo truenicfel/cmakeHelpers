@@ -1,6 +1,3 @@
-message(STATUS "Included git helpers cmake module! Requires git package.")
-find_package(Git 2.22 REQUIRED)
-
 # Get the git tag of a git repository
 # Parameters:
 # - PATH_TO_GIT_REPOSITORY: the path to the git repository
@@ -8,6 +5,7 @@ find_package(Git 2.22 REQUIRED)
 # - GIT_TAG: the tag name (string) or "n/a" if nothing was found
 # - GIT_TAG_FOUND: True/False if a tag was found
 function(getGitTag PATH_TO_GIT_REPOSITORY)
+    find_package(Git 2.22 REQUIRED)
     set(RESULT_TAG "n/a")
     set(RESULT_FOUND False)
     if(GIT_FOUND AND EXISTS ${PATH_TO_GIT_REPOSITORY})
@@ -38,7 +36,7 @@ endfunction()
 # COMMIT_NUMBER_AFTER_VERSION: the number of commits on top of the latest version tag
 # GIT_TAG_VERSION_FOUND: True/False if operation was successful
 function(getVersionFromGitTag PATH_TO_GIT_REPOSITORY)
-
+    find_package(Git 2.22 REQUIRED)
     set(VERSION_MAJOR "")
     set(VERSION_MINOR "")
     set(VERSION_PATCH "")
@@ -97,6 +95,7 @@ endfunction()
 # COMMIT_HASH: the hash
 # COMMIT_HASH_FOUND: True/False if operation was successful
 function(getGitHash PATH_TO_GIT_REPOSITORY)
+    find_package(Git 2.22 REQUIRED)
     set(COMMIT_HASH_FOUND False)
     set(COMMIT_HASH "")
 
@@ -126,6 +125,7 @@ endfunction()
 # - GIT_BRANCH: the branch name (string) or "n/a" if nothing was found
 # - GIT_BRANCH_FOUND: True/False if a branch was found
 function(getGitBranch PATH_TO_GIT_REPOSITORY)
+    find_package(Git 2.22 REQUIRED)
     set(RESULT_BRANCH "n/a")
     set(RESULT_FOUND False)
     if(GIT_FOUND AND EXISTS ${PATH_TO_GIT_REPOSITORY})
@@ -148,59 +148,57 @@ endfunction()
 # Requires parameter:
 # PATH_TO_GIT_REPO: the path to the repository (if its not a git repository it will fail)
 function(printGitRepoInfo PATH_TO_GIT_REPO)
-    if(GIT_FOUND)
-        getVersionFromGitTag(${PATH_TO_GIT_REPO})
-        getGitHash(${PATH_TO_GIT_REPO})
-        getGitBranch(${PATH_TO_GIT_REPO})
+    find_package(Git 2.22 REQUIRED)
+    getVersionFromGitTag(${PATH_TO_GIT_REPO})
+    getGitHash(${PATH_TO_GIT_REPO})
+    getGitBranch(${PATH_TO_GIT_REPO})
 
-        if(GIT_TAG_VERSION_FOUND)
-            set(VERSION "${VERSION_COMBINED} (${COMMIT_NUMBER_AFTER_VERSION} commits on top)")
-        else()
-            set(VERSION "unknown")
-        endif()
-
-        if(GIT_BRANCH_FOUND)
-            if("${GIT_BRANCH}" STREQUAL "")
-                set(BRANCH "detached head")
-            else()
-                set(BRANCH ${GIT_BRANCH})
-            endif()
-        else()
-            set(BRANCH "unknown")
-        endif()
-
-        if(COMMIT_HASH_FOUND)
-            set(HASH ${COMMIT_HASH})
-        else()
-            set(HASH "unknown")
-        endif()
-        message(STATUS "Found Submodule: '${PATH_TO_GIT_REPO}' (version: ${VERSION}, branch: ${BRANCH}, hash: ${HASH})")
+    if(GIT_TAG_VERSION_FOUND)
+        set(VERSION "${VERSION_COMBINED} (${COMMIT_NUMBER_AFTER_VERSION} commits on top)")
+    else()
+        set(VERSION "unknown")
     endif()
+
+    if(GIT_BRANCH_FOUND)
+        if("${GIT_BRANCH}" STREQUAL "")
+            set(BRANCH "detached head")
+        else()
+            set(BRANCH ${GIT_BRANCH})
+        endif()
+    else()
+        set(BRANCH "unknown")
+    endif()
+
+    if(COMMIT_HASH_FOUND)
+        set(HASH ${COMMIT_HASH})
+    else()
+        set(HASH "unknown")
+    endif()
+    message(STATUS "Found Git Repo: '${PATH_TO_GIT_REPO}' (version: ${VERSION}, branch: ${BRANCH}, hash: ${HASH})")
 
 endfunction()
 
 # Prints repository info of all available submodules
 function(printSubmoduleStates)
-    if(GIT_FOUND)
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule status
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                OUTPUT_VARIABLE SUBMODULES
-                RESULT_VARIABLE RETURN_VALUE
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if(RETURN_VALUE EQUAL "0" AND NOT ${SUBMODULES} STREQUAL "")
-            # split at line breaks
-            string(REGEX REPLACE "[\r\n]" ";" SUBMODULES_LINES ${SUBMODULES})
-            # iterate
-            foreach(LINE ${SUBMODULES_LINES})
-                # split at spaces
-                string(REPLACE " " ";" LINE_LIST ${LINE})
-                list(GET LINE_LIST 2 PATH_ELEMENT)
+    find_package(Git 2.22 REQUIRED)
+    execute_process(COMMAND ${GIT_EXECUTABLE} submodule status
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE SUBMODULES
+            RESULT_VARIABLE RETURN_VALUE
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(RETURN_VALUE EQUAL "0" AND NOT ${SUBMODULES} STREQUAL "")
+        # split at line breaks
+        string(REGEX REPLACE "[\r\n]" ";" SUBMODULES_LINES ${SUBMODULES})
+        # iterate
+        foreach(LINE ${SUBMODULES_LINES})
+            # split at spaces
+            string(REPLACE " " ";" LINE_LIST ${LINE})
+            list(GET LINE_LIST 2 PATH_ELEMENT)
 
-                set(PATH_TO_SUBMODULE "${CMAKE_CURRENT_SOURCE_DIR}/${PATH_ELEMENT}")
+            set(PATH_TO_SUBMODULE "${CMAKE_CURRENT_SOURCE_DIR}/${PATH_ELEMENT}")
 
-                printGitRepoInfo(${PATH_TO_SUBMODULE})
+            printGitRepoInfo(${PATH_TO_SUBMODULE})
 
-            endforeach()
-        endif()
+        endforeach()
     endif()
 endfunction()
