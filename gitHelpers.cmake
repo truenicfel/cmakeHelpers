@@ -143,6 +143,43 @@ function(getGitBranch PATH_TO_GIT_REPOSITORY)
     set(GIT_BRANCH_FOUND ${RESULT_FOUND} PARENT_SCOPE)
 endfunction()
 
+# Prints information about a git repository to STATUS console output
+# Information included is: latest version (from git tag), branch, commit hash and the path to the repo
+# Requires parameter:
+# PATH_TO_GIT_REPO: the path to the repository (if its not a git repository it will fail)
+function(printGitRepoInfo PATH_TO_GIT_REPO)
+    if(GIT_FOUND)
+        getVersionFromGitTag(${PATH_TO_GIT_REPO})
+        getGitHash(${PATH_TO_GIT_REPO})
+        getGitBranch(${PATH_TO_GIT_REPO})
+
+        if(GIT_TAG_VERSION_FOUND)
+            set(VERSION "${VERSION_COMBINED} (${COMMIT_NUMBER_AFTER_VERSION} commits on top)")
+        else()
+            set(VERSION "unknown")
+        endif()
+
+        if(GIT_BRANCH_FOUND)
+            if("${GIT_BRANCH}" STREQUAL "")
+                set(BRANCH "detached head")
+            else()
+                set(BRANCH ${GIT_BRANCH})
+            endif()
+        else()
+            set(BRANCH "unknown")
+        endif()
+
+        if(COMMIT_HASH_FOUND)
+            set(HASH ${COMMIT_HASH})
+        else()
+            set(HASH "unknown")
+        endif()
+        message(STATUS "Found Submodule: '${PATH_TO_GIT_REPO}' (version: ${VERSION}, branch: ${BRANCH}, hash: ${HASH})")
+    endif()
+
+endfunction()
+
+# Prints repository info of all available submodules
 function(printSubmoduleStates)
     if(GIT_FOUND)
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule status
@@ -161,33 +198,7 @@ function(printSubmoduleStates)
 
                 set(PATH_TO_SUBMODULE "${CMAKE_CURRENT_SOURCE_DIR}/${PATH_ELEMENT}")
 
-                getVersionFromGitTag(${PATH_TO_SUBMODULE})
-                getGitHash(${PATH_TO_SUBMODULE})
-                getGitBranch(${PATH_TO_SUBMODULE})
-
-                if(GIT_TAG_VERSION_FOUND)
-                    set(VERSION "${VERSION_COMBINED} (${COMMIT_NUMBER_AFTER_VERSION} commits on top)")
-                else()
-                    set(VERSION "unknown")
-                endif()
-
-                if(GIT_BRANCH_FOUND)
-                    if("${GIT_BRANCH}" STREQUAL "")
-                        set(BRANCH "detached head")
-                    else()
-                        set(BRANCH ${GIT_BRANCH})
-                    endif()
-                else()
-                    set(BRANCH "unknown")
-                endif()
-
-                if(COMMIT_HASH_FOUND)
-                    set(HASH ${COMMIT_HASH})
-                else()
-                    set(HASH "unknown")
-                endif()
-
-                message(STATUS "Found Submodule: '${PATH_TO_SUBMODULE}' (version: ${VERSION}${VERSION_ADDITIONAL}, branch: ${BRANCH}, hash: ${HASH})")
+                printGitRepoInfo(${PATH_TO_SUBMODULE})
 
             endforeach()
         endif()
