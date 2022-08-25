@@ -37,10 +37,10 @@ endfunction()
 # GIT_TAG_VERSION_FOUND: True/False if operation was successful
 function(getVersionFromGitTag PATH_TO_GIT_REPOSITORY)
     find_package(Git 2.22 REQUIRED)
-    set(VERSION_MAJOR "")
-    set(VERSION_MINOR "")
-    set(VERSION_PATCH "")
-    set(VERSION_TWEAK "")
+    set(VERSION_MAJOR "0")
+    set(VERSION_MINOR "0")
+    set(VERSION_PATCH "0")
+    set(VERSION_TWEAK "0")
     set(VERSION_COMBINED "")
     set(COMMIT_NUMBER_AFTER_VERSION "")
     set(GIT_TAG_VERSION_FOUND False)
@@ -142,6 +142,27 @@ function(getGitBranch PATH_TO_GIT_REPOSITORY)
     set(GIT_BRANCH "${RESULT_BRANCH}" PARENT_SCOPE)
     set(GIT_BRANCH_FOUND ${RESULT_FOUND} PARENT_SCOPE)
 endfunction()
+
+# Check if given directory is a git repository.
+# Parameters:
+# - PATH: the path to the potential git repository
+# Return values (variables set):
+# - GIT_REPOSITORY_FOUND: True/False if a repository was found
+function(isGitRepository PATH)
+    find_package(Git 2.22 REQUIRED)
+    set(FOUND False)
+    if(GIT_FOUND AND EXISTS ${PATH})
+        execute_process(COMMAND ${GIT_EXECUTABLE} status
+                WORKING_DIRECTORY ${PATH}
+                OUTPUT_QUIET
+                RESULT_VARIABLE RETURN_VALUE)
+        if(RETURN_VALUE EQUAL "0")
+            set(FOUND True)
+        endif()
+    endif()
+    set(GIT_REPOSITORY_FOUND ${FOUND} PARENT_SCOPE)
+endfunction()
+
 
 # Prints information about a git repository to STATUS console output
 # Information included is: latest version (from git tag), branch, commit hash and the path to the repo
